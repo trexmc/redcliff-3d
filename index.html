@@ -790,9 +790,6 @@ function scheduleMusic(){
   const beat=.5 - intensity*.18;          // 張力越高節奏越快
   const t0=AC.currentTime+.05;
   if(musicOn){
-    // 戰鼓（單一低沉鼓點，避免急促連擊像馬蹄聲）
-    drum(t0, .22+intensity*.35, 90);
-    if(intensity>.7) drum(t0+beat, .2*intensity, 75);
     // 古箏旋律（隨機五聲音階，低張力時稀疏）
     if(Math.random()<.45+intensity*.4){
       const base=PENTA[Math.floor(Math.random()*PENTA.length)];
