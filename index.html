@@ -910,7 +910,14 @@ function animate(){
   const et=clock.elapsedTime;
 
   if(playing){
-    T+=dt*speed/PHASE_SECONDS;
+    let nT=T+dt*speed/PHASE_SECONDS;
+    // 旁白未唸完前，停在本幕結尾，不跳下一幕
+    if(voiceOn && 'speechSynthesis' in window &&
+       (speechSynthesis.speaking||speechSynthesis.pending) &&
+       Math.floor(nT)>Math.floor(T)){
+      nT=Math.floor(T)+0.999;
+    }
+    T=nT;
     if(T>=PH_N-1){ T=PH_N-1; playing=false; btnPlay.textContent='▶ 播放'; btnPlay.classList.remove('active'); }
     tl.value=T*100;
     applyTime(T);
