@@ -110,6 +110,51 @@
     #forces{width:170px;} #log{width:200px;} #titleBar h1{font-size:19px;}
     #stratFx .s-name{font-size:36px;} #camHint{display:none;}
   }
+
+  /* ===== 手機直向 / 窄螢幕版面 ===== */
+  #btnLog{display:none;}
+  @media (max-width:768px){
+    #titleBar{padding:6px 0 2px;}
+    #titleBar h1{font-size:17px;letter-spacing:5px;}
+    #titleBar .sub, #titleBar br{display:none;}
+    #dateBadge{font-size:10px;padding:0 8px;margin-top:2px;}
+    #phaseCard{top:50px;width:94vw;max-width:94vw;padding:5px 10px;}
+    #phaseCard .ph-title{font-size:14px;letter-spacing:2px;}
+    #phaseCard .ph-desc{font-size:11px;}
+    #weather{top:auto;bottom:248px;left:8px;font-size:10px;padding:3px 8px;letter-spacing:1px;}
+    #weather .w-icon{font-size:13px;margin-right:3px;}
+    #camHint{display:none !important;}
+    /* 三軍戰力 → 底部橫向窄條 */
+    #forces{top:auto;bottom:132px;left:6px;right:6px;width:auto;flex-direction:row;gap:5px;}
+    .force{padding:4px 6px;flex:1;border-left-width:3px;min-width:0;}
+    .force .f-head{flex-direction:column;align-items:flex-start;gap:0;}
+    .force .f-name{font-size:11px;letter-spacing:0;}
+    .force .f-num{font-size:9px;}
+    .force .f-bar{height:5px;margin-top:3px;}
+    .force .f-gen{display:none;}
+    .force .f-state{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    /* 戰報 → 點按開關的置中浮層 */
+    #log{display:none;bottom:auto;top:96px;left:50%;transform:translateX(-50%);
+      width:88vw;max-height:38vh;z-index:40;}
+    #log.open{display:block;}
+    #btnLog{display:inline-block;}
+    #lyric{bottom:196px;font-size:13px;letter-spacing:2px;white-space:normal;width:92vw;}
+    #lyric .l-src{font-size:9px;}
+    #stratFx .s-name{font-size:30px;letter-spacing:6px;}
+    #stratFx .s-label{font-size:11px;letter-spacing:4px;}
+    #stratFx .s-who{font-size:12px;}
+    .legend{display:none;}
+    #ctrl{padding:4px 8px 8px;gap:3px;}
+    #btnRow{gap:5px;}
+    .btn{font-size:11px;padding:4px 9px;letter-spacing:1px;}
+    .btn.small{font-size:10px;padding:3px 7px;}
+    .tick{font-size:0;}
+    .tick::after{top:4px;height:6px;}
+    #timelineWrap{height:20px;}
+    #timeline{margin-top:6px;}
+    #loading .l1{font-size:28px;letter-spacing:10px;}
+    #loading .l2{font-size:11px;letter-spacing:3px;}
+  }
 </style>
 </head>
 <body>
@@ -176,6 +221,7 @@
     <button class="btn small" id="btnCine">🎬 電影運鏡</button>
     <button class="btn small" id="btnSpeed">速度 ×1</button>
     <button class="btn small" id="btnReset">⟲ 重播</button>
+    <button class="btn small" id="btnLog">📜 戰報</button>
     <button class="btn small active" id="btnVoice">🔊 旁白</button>
     <button class="btn small active" id="btnMusic">🎵 音樂</button>
     <span id="speedLabel"></span>
@@ -204,8 +250,10 @@ const COL = { cao:0x3b7dff, sun:0xff4444, liu:0x33cc66 };
 const renderer = new THREE.WebGLRenderer({ canvas:document.getElementById('c'), antialias:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth,innerHeight);
-renderer.shadowMap.enabled = true;
+const IS_MOBILE = matchMedia('(max-width:768px)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
+renderer.shadowMap.enabled = !IS_MOBILE;       // 手機關陰影提升效能
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+if(IS_MOBILE) renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a1428);
@@ -823,6 +871,11 @@ function onPhaseEnter(idx){
 }
 
 /* ---- 按鈕 / 首次互動解鎖音訊 ---- */
+document.getElementById('btnLog').onclick=function(){
+  const lg=document.getElementById('log');
+  lg.classList.toggle('open');
+  this.classList.toggle('active', lg.classList.contains('open'));
+};
 document.getElementById('btnVoice').onclick=function(){
   voiceOn=!voiceOn; this.classList.toggle('active',voiceOn);
   if(!voiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
