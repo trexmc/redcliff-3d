@@ -93,6 +93,13 @@
   .legend span { display:flex; align-items:center; gap:5px; }
   .dot { width:12px; height:12px; border-radius:2px; display:inline-block; }
 
+  /* ===== Lyric / subtitle bar ===== */
+  #lyric { bottom:118px; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none;
+    font-size:20px; letter-spacing:6px; color:#ffeebb; white-space:nowrap;
+    text-shadow:0 0 14px rgba(255,170,60,.9),0 2px 6px #000; opacity:0; transition:opacity 1.2s; }
+  #lyric .l-src { display:block; font-size:11px; color:#b9a; letter-spacing:3px; margin-top:4px; }
+  #lyric.show { opacity:1; }
+
   ::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-thumb { background:#456; border-radius:3px; }
 
   #loading { position:fixed; inset:0; background:#000; z-index:99; display:flex; flex-direction:column;
@@ -157,6 +164,8 @@
 
 <div class="hud" id="log"><h3>📜 戰報</h3><div id="logBody"></div></div>
 
+<div class="hud" id="lyric"><span id="lyricText"></span><span class="l-src">—— 蘇軾《念奴嬌 ‧ 赤壁懷古》</span></div>
+
 <div class="hud" id="ctrl">
   <div id="timelineWrap">
     <div id="ticks"></div>
@@ -167,6 +176,8 @@
     <button class="btn small" id="btnCine">🎬 電影運鏡</button>
     <button class="btn small" id="btnSpeed">速度 ×1</button>
     <button class="btn small" id="btnReset">⟲ 重播</button>
+    <button class="btn small active" id="btnVoice">🔊 旁白</button>
+    <button class="btn small active" id="btnMusic">🎵 音樂</button>
     <span id="speedLabel"></span>
     <div class="legend">
       <span><span class="dot" style="background:#3b7dff"></span>曹操</span>
@@ -681,6 +692,7 @@ function applyTime(t){
       lastLogIdx=idx;
     }
     if(pa.strat) showStrat(pa.strat);
+    onPhaseEnter(idx);
   }
   weatherState = pa.rain?'rain':(pa.wind?'wind':'clear');
   curPhase=pa; curBurnK=burnK; curKRaw=kRaw; curIdx=idx;
@@ -707,6 +719,139 @@ function showStrat(s){
   clearTimeout(stratTimer);
   stratTimer=setTimeout(()=>el.classList.remove('show'), 3400);
 }
+
+/* ============================================================
+   旁白（Web Speech）‧ 配樂（WebAudio）‧ 詞句字幕
+============================================================ */
+const LYRICS=[
+  '大江東去，浪淘盡，千古風流人物',
+  '故壘西邊，人道是，三國周郎赤壁',
+  '亂石穿空，驚濤拍岸，捲起千堆雪',
+  '江山如畫，一時多少豪傑',
+  '遙想公瑾當年，雄姿英發',
+  '羽扇綸巾，談笑間——',
+  '檣櫓灰飛煙滅',
+  '故國神遊，多情應笑我',
+  '人生如夢',
+  '一尊還酹江月',
+];
+/* 每幕音樂張力 0~1 */
+const MUSIC_INTENSITY=[.25,.32,.45,.4,.42,.55,1,.95,.55,.22];
+
+let voiceOn=true, musicOn=true;
+
+/* ---- 旁白 ---- */
+let zhVoice=null;
+function pickVoice(){
+  const vs=speechSynthesis.getVoices();
+  zhVoice = vs.find(v=>/zh[-_]?(TW|HK)/i.test(v.lang)) || vs.find(v=>/^zh/i.test(v.lang)) || null;
+}
+if('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }
+function narrate(ph, idx){
+  if(!voiceOn || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(`第${idx+1}幕，${ph.name.replace(/‧/g,'，')}。${ph.desc}`);
+  u.lang='zh-TW'; if(zhVoice) u.voice=zhVoice;
+  u.rate=1.02; u.pitch=1.0; u.volume=1;
+  speechSynthesis.speak(u);
+}
+
+/* ---- 程序化配樂：五聲音階古箏撥弦 + 戰鼓 ---- */
+let AC=null, masterGain=null, musicTimer=null, intensity=.3;
+const PENTA=[220,261.63,293.66,329.63,392,440,523.25,587.33]; // A C D E G ...
+function initAudio(){
+  if(AC) return;
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  masterGain=AC.createGain(); masterGain.gain.value=.55; masterGain.connect(AC.destination);
+  scheduleMusic();
+}
+function pluck(freq, when, vol=.25, decay=1.6){
+  const o=AC.createOscillator(), g=AC.createGain(), f=AC.createBiquadFilter();
+  o.type='triangle'; o.frequency.value=freq;
+  f.type='lowpass'; f.frequency.setValueAtTime(freq*6,when);
+  f.frequency.exponentialRampToValueAtTime(freq*1.5, when+decay);
+  g.gain.setValueAtTime(vol,when);
+  g.gain.exponentialRampToValueAtTime(.0001, when+decay);
+  o.connect(f); f.connect(g); g.connect(masterGain);
+  o.start(when); o.stop(when+decay+.1);
+}
+function drum(when, vol=.5, low=110){
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(low,when);
+  o.frequency.exponentialRampToValueAtTime(38, when+.22);
+  g.gain.setValueAtTime(vol,when);
+  g.gain.exponentialRampToValueAtTime(.0001, when+.32);
+  o.connect(g); g.connect(masterGain);
+  o.start(when); o.stop(when+.4);
+  // 鼓皮噪聲
+  const n=AC.createBufferSource(), buf=AC.createBuffer(1,2205,44100), d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/300);
+  n.buffer=buf;
+  const ng=AC.createGain(); ng.gain.value=vol*.25;
+  n.connect(ng); ng.connect(masterGain); n.start(when);
+}
+function scheduleMusic(){
+  if(!AC) return;
+  const beat=.5 - intensity*.18;          // 張力越高節奏越快
+  const t0=AC.currentTime+.05;
+  if(musicOn){
+    // 戰鼓
+    drum(t0, .3+intensity*.5);
+    if(intensity>.5) drum(t0+beat*.5, .25*intensity, 90);
+    if(intensity>.8){ drum(t0+beat*.25,.3,140); drum(t0+beat*.75,.3,140); }
+    // 古箏旋律（隨機五聲音階，低張力時稀疏）
+    if(Math.random()<.45+intensity*.4){
+      const base=PENTA[Math.floor(Math.random()*PENTA.length)];
+      pluck(base, t0+Math.random()*beat*.5, .16+intensity*.12);
+      if(Math.random()<intensity) pluck(base*1.5, t0+beat*.5, .1);
+    }
+    // 高張力長音弦（緊張感）
+    if(intensity>.7 && Math.random()<.3){
+      pluck(110+Math.random()*40, t0, .12, 2.4);
+    }
+  }
+  musicTimer=setTimeout(scheduleMusic, beat*1000*2);
+}
+
+/* ---- 詞句字幕 ---- */
+let lyricTimer=null;
+function showLyric(idx){
+  const el=document.getElementById('lyric');
+  document.getElementById('lyricText').textContent=LYRICS[idx]||'';
+  el.classList.add('show');
+  clearTimeout(lyricTimer);
+  lyricTimer=setTimeout(()=>el.classList.remove('show'), 7000);
+}
+
+/* ---- 進入新幕的統一掛勾 ---- */
+function onPhaseEnter(idx){
+  const ph=phases[idx];
+  intensity=MUSIC_INTENSITY[idx];
+  narrate(ph, idx);
+  showLyric(idx);
+}
+
+/* ---- 按鈕 / 首次互動解鎖音訊 ---- */
+document.getElementById('btnVoice').onclick=function(){
+  voiceOn=!voiceOn; this.classList.toggle('active',voiceOn);
+  if(!voiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+  else if(voiceOn) narrate(curPhase, curIdx);
+};
+document.getElementById('btnMusic').onclick=function(){
+  musicOn=!musicOn; this.classList.toggle('active',musicOn);
+  if(musicOn) initAudio();
+};
+function unlockAudio(){
+  initAudio();
+  if(AC && AC.state==='suspended') AC.resume();
+  // 部分瀏覽器需在手勢內先呼叫一次 speak
+  if(voiceOn && 'speechSynthesis' in window && !speechSynthesis.speaking) narrate(curPhase, curIdx);
+  removeEventListener('pointerdown', unlockAudio);
+  removeEventListener('keydown', unlockAudio);
+}
+addEventListener('pointerdown', unlockAudio);
+addEventListener('keydown', unlockAudio);
 
 /* ============================================================
    電影運鏡
