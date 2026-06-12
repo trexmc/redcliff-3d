@@ -791,16 +791,28 @@ let voiceOn=true, musicOn=true;
 
 /* ---- 旁白 ---- */
 let zhVoice=null;
+const NARR_LANG = localStorage.getItem('narrationLang') || 'zh-TW';   // 首頁選單可選
+const LANG_RX = { 'zh-TW':/zh[-_]?TW/i, 'zh-HK':/zh[-_]?HK|yue/i, 'zh-CN':/zh[-_]?CN/i };
 function pickVoice(){
   const vs=speechSynthesis.getVoices();
-  zhVoice = vs.find(v=>/zh[-_]?(TW|HK)/i.test(v.lang)) || vs.find(v=>/^zh/i.test(v.lang)) || null;
+  zhVoice = vs.find(v=>(LANG_RX[NARR_LANG]||LANG_RX['zh-TW']).test(v.lang))
+         || vs.find(v=>/^zh/i.test(v.lang)) || null;
 }
 if('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }
 function narrate(ph, idx){
   if(!voiceOn || !('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
+  // 語音清單尚未載入時等載入完成再唸，避免第一幕落到預設語音（口音不一致）
+  if(speechSynthesis.getVoices().length===0){
+    speechSynthesis.addEventListener('voiceschanged', ()=>{ pickVoice(); speakNow(ph,idx); }, {once:true});
+    return;
+  }
+  pickVoice();
+  speakNow(ph, idx);
+}
+function speakNow(ph, idx){
   const u=new SpeechSynthesisUtterance(`第${idx+1}幕，${ph.name.replace(/‧/g,'，')}。${ph.desc}`);
-  u.lang='zh-TW'; if(zhVoice) u.voice=zhVoice;
+  u.lang=NARR_LANG; if(zhVoice) u.voice=zhVoice;
   u.rate=1.02; u.pitch=1.0; u.volume=1;
   speechSynthesis.speak(u);
 }

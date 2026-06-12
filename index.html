@@ -31,6 +31,15 @@
     border-radius:3px;padding:1px 8px;letter-spacing:1px;}
   .tag.soon{color:#789;border-color:#456;}
   .foot{margin-top:54px;font-size:11px;color:#567;letter-spacing:2px;text-align:center;line-height:1.8;}
+  .langbar{margin-top:38px;text-align:center;}
+  .langbar .lb-title{font-size:13px;color:#9ab;letter-spacing:3px;margin-bottom:10px;}
+  .langbar .lb-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .lang-btn{background:rgba(255,215,0,.08);color:#cdb;border:1px solid rgba(255,215,0,.35);
+    border-radius:8px;padding:8px 22px;font-size:14px;cursor:pointer;letter-spacing:2px;
+    font-family:inherit;transition:all .2s;}
+  .lang-btn:hover{background:rgba(255,215,0,.2);}
+  .lang-btn.active{background:#ffd700;color:#000;font-weight:bold;}
+  .langbar .lb-hint{font-size:10px;color:#456;margin-top:8px;letter-spacing:1px;}
   @media (max-width:720px){ h1{font-size:28px;letter-spacing:8px;} .cards{gap:16px;} a.card{width:92vw;max-width:340px;} }
 </style>
 </head>
@@ -68,6 +77,26 @@
       </div>
     </a>
   </div>
+
+  <div class="langbar">
+    <div class="lb-title">🔊 旁白語音語言</div>
+    <div class="lb-btns">
+      <button class="lang-btn" data-lang="zh-TW">台灣國語</button>
+      <button class="lang-btn" data-lang="zh-CN">普通話</button>
+      <button class="lang-btn" data-lang="zh-HK">粵語</button>
+    </div>
+    <div class="lb-hint">實際音色取決於你的裝置已安裝的語音；選擇會記住，套用到三場戰役。</div>
+  </div>
+
+  <script>
+    (function(){
+      var cur = localStorage.getItem('narrationLang') || 'zh-TW';
+      var btns = document.querySelectorAll('.lang-btn');
+      function paint(){ btns.forEach(function(b){ b.classList.toggle('active', b.dataset.lang===cur); }); }
+      btns.forEach(function(b){ b.onclick=function(){ cur=b.dataset.lang; localStorage.setItem('narrationLang',cur); paint(); }; });
+      paint();
+    })();
+  </script>
 
   <div class="foot">
     互動式 3D 戰史 ‧ 自動播放或自由運鏡 ‧ 旁白 / 配樂 / 計策特效<br>
